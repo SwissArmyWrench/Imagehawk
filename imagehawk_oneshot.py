@@ -6,6 +6,7 @@
 # It can be installed with "pip install requests"
 
 from requests import get
+import os
 import json
 # print("Hello world!")
 def grabFromDockerHub(image):
@@ -15,6 +16,9 @@ def grabFromDockerHub(image):
         response_json = response.json()
         digest = response_json.get("digest")
         print(f"Digest: {digest}")
+    
+    local = os.system(f"docker image inspect {image}")
+    local.get("RepoDigests")
 
 
 
