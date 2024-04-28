@@ -1,5 +1,4 @@
 use std::process::Command;
-
 fn main() {
     // let mut dockerps = Command::new("docker");
     // let mut dockerps = dockerps.arg("ps");
@@ -7,11 +6,13 @@ fn main() {
         Command::new("docker")
             .arg("ps")
             .arg("--format")
-            .arg("json")
+            .arg("\"{{ .Image }}\"")
             .output()
             .unwrap()
             .stdout,
     )
     .unwrap();
-    println!("{:?}", output);
+    println!("{}", output);
+    //let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    // println!("{}", parsed[0]["Image"]);
 }
