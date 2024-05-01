@@ -105,13 +105,33 @@ impl Image<'_> {
             parsed_tag,
             match self.remote {
                 Remote::DockerHub => "DockerHub",
-                Remote::Quay => "Quay",
+                Remote::Quay => "Quay.io",
                 Remote::Lscr => "LSCR.io",
                 Remote::Ghcr => "GHCR.io",
             }
 
         );
     }
+
+    fn dump(&self) -> String {
+        let repo_and_tag = match (self.repo, self.tag) {
+            (Some(repo), Some(tag)) => format!("/{repo}:{tag}"),
+            (Some(repo), None) => format!("/{repo}"),
+            (None, Some(tag)) => format!(":{tag}"),
+            (None, None) => String::from(""),
+        };
+
+        let remote_and_name = match self.remote {
+            Remote::DockerHub => format!("{}", self.namespace),
+            Remote::Quay => format!("quay.io/{}", self.namespace),
+            Remote::Lscr => format!("lscr.io/{}", self.namespace),
+            Remote::Ghcr => format!("ghcr.io/{}", self.namespace),
+        };
+        format!("{remote_and_name}{repo_and_tag}")
+
+    }
+       
+    
 }
 
 fn main() {
@@ -134,11 +154,13 @@ fn main() {
     let output_iter = output_iter.iter().map(|x| x.trim_matches('"'));
     let output_iter = output_iter.map(|string| Image::from_str(string));
     // println!("{:?}", &output_iter);
-    let images: Vec<Image> = output_iter.collect();
+    let mut images: Vec<Image> = output_iter.collect();
     // images.remove(images.len() - 1);
-
+    // images.retain(|img| img.tag == Some("latest"));
     for image in images {
+        println!("{}", image.dump());
         image.print();
+        // API calls and comparisons here
     }
 
     //let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
