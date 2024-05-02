@@ -158,9 +158,10 @@ fn main() {
         println!("{}", image.dump());
         // API calls and comparisons here
         let response = reqwest::blocking::get(format!(
-            "https://hub.docker.com/v2/namespaces/{0}/repositories/{1}/tags/latest",
+            "https://hub.docker.com/v2/namespaces/{0}/repositories/{1}/tags/{2}",
             &image.namespace,
-            &image.repo.unwrap_or("error")
+            &image.repo.unwrap_or("error"),
+            &image.tag.unwrap_or("latest"),
         ));
         let status = response.as_ref().unwrap().status();
         println!("Status Code {}", &status);
@@ -172,12 +173,32 @@ fn main() {
         };
         if status.as_u16() == 200 && api_supported {
             let json = response.unwrap().text().unwrap();
-            println!("{json}");
+            // println!("{json}");
             let parsed_json: Value = serde_json::from_str(&json).expect("unable to parse JSON");
             let digest = parsed_json.get("digest");
             let digest = digest.unwrap(); // .expect("tried to unwrap a None");
-            println!("{}", digest.as_str().unwrap());
+            let remote_hash = digest.as_str().unwrap();
         }
+
+        let localImage = Command::new("docker")
+            .arg("image")
+            .arg("inspect")
+            .arg(image.dump())
+            .output()
+            .unwrap()
+            .stdout;
+        let local_image_json: Value =
+            serde_json::from_str(&String::from_utf8(localImage).unwrap()).unwrap();
+        let local_image_hash = local_image_json
+            .get(0)
+            .unwrap()
+            .get("RepoDigests")
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .as_str()
+            .unwrap();
+        println!("{local_image_hash}");
     }
 
     //let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
