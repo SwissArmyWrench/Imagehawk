@@ -1,7 +1,14 @@
-use std::process::Command;
+use std::process::Command; // Used to run Docker commands on the host system
 
-use serde_json::Value;
+use serde_json::Value; // Used to parse output JSON from Docker/DockerHub to find image hashes
 
+/// This struct contains a Rust-ified version of a Docker image name.
+/// Names without a tag are valid, such as pihole/pihole, so the `tag` field is an Option.
+/// Names without a repo are (in some cases) valid, such as the Postgres database,
+/// which is hosted under `postgres:13` or whatever, without a repo name, so the repo is
+/// also tracked as an Option.
+/// The image might be hosted on a number of places other than DockerHub, so this is
+/// specified in the `remote` field which takes a Remote enum.
 struct Image<'img> {
     namespace: &'img str,
     repo: Option<&'img str>,
@@ -9,6 +16,8 @@ struct Image<'img> {
     remote: Remote,
 }
 
+/// This enum simply denotes what container registry an image is sourced from.
+/// At the moment only DockerHub is supported.
 enum Remote {
     DockerHub,
     Ghcr,
@@ -17,9 +26,13 @@ enum Remote {
 }
 
 impl Image<'_> {
+    /// from_str() parses a plaintext image name into an Image struct.
+    /// TODO: implement regex matching to simplify all of this code
     fn from_str(namestring: &str) -> Image {
-        let parts: Vec<&str> = namestring.split('/').collect();
+        let parts: Vec<&str> = namestring.split('/').collect(); // Separate by slashes
 
+        // if 2 slashes (and thus 3 parts), this means a URL to another registry was included
+        // Otherwise, only 1 slash means it's hosted on DockerHub
         if parts.len() == 3 {
             let namespace = parts[1];
             let remote = if parts[0] == "lscr.io" {
@@ -31,24 +44,32 @@ impl Image<'_> {
             } else {
                 Remote::DockerHub
             };
-            let repo: Option<&str>;
-            let tag: Option<&str>;
+            let repo: Option<&str>; // Init repo variable
+            let tag: Option<&str>; // init tag variable
+
+            // If the last portion of the name contains a colon, there is a tag
             if parts[2].contains(':') {
                 // has tag
-                let parts: Vec<&str> = parts[2].split(':').collect();
-                repo = Some(parts[0]);
-                tag = Some(parts[1]);
+                let parts: Vec<&str> = parts[2].split(':').collect(); // split around the colon
+                repo = Some(parts[0]); // assign repo
+                tag = Some(parts[1]); // assign tag
             } else {
+                // otherwise there is no tag and the tag should be filled with a None variant
                 repo = Some(parts[0]);
                 tag = None;
             }
 
+            // Assemble struct instance and return it
             return Image {
                 namespace,
                 repo,
                 tag,
                 remote,
             };
+
+        // if no external repo is specified repeat 
+        // most of the above code but hard code
+        // the remote to DockerHub
         } else if parts.len() == 2 {
             let namespace = parts[0];
             let parts: Vec<&str> = parts[1].split(':').collect();
@@ -65,8 +86,11 @@ impl Image<'_> {
                 tag,
                 remote: Remote::DockerHub,
             };
+        // Handle the extra empty strings that end up in the
+        // output by simply ignoring them
         } else if (parts.len() == 1) && (parts[0].is_empty()) {
             // do nothing
+        // Handle the cases like postgres:13 with a None enum
         } else if parts.len() == 1 {
             let parts: Vec<&str> = parts[0].split(':').collect();
             let namespace = parts[0];
@@ -82,7 +106,9 @@ impl Image<'_> {
         };
 
 
-        println!("NOTHING RETURNED YET\n{:?}", parts);
+        // if nothing has happened as this point return an error struct
+        // and complain about it on stderr
+        eprintln!("NOTHING RETURNED YET\n{:?}", parts);
         Image {
             namespace: "error",
             repo: Some("error"),
@@ -91,6 +117,7 @@ impl Image<'_> {
         }
     }
 
+    /// This function returns the image as a docker name string.
     fn dump(&self) -> String {
         let repo_and_tag = match (self.repo, self.tag) {
             (Some(repo), Some(tag)) => format!("/{repo}:{tag}"),
