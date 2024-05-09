@@ -152,8 +152,10 @@ fn main() {
     let output_iter = output_iter.map(|string| Image::from_str(string));
     // println!("{:?}", &output_iter);
     let images: Vec<Image> = output_iter.collect();
+    
     // images.remove(images.len() - 1);
     // images.retain(|img| img.tag == Some("latest"));
+    let mut warnings = Vec::<Image>::new();
     for image in images {
         // println!("{}", image.dump());
         // API calls and comparisons here
@@ -171,11 +173,9 @@ fn main() {
             Remote::Lscr => false,
             Remote::Ghcr => false,
         };
-
         if !(status.as_str() == "200" && api_supported) {
             continue;
         }
-
         let json = response.unwrap().text().unwrap();
         // println!("{json}");
         let parsed_json: Value = serde_json::from_str(&json).expect("unable to parse JSON");
@@ -201,22 +201,27 @@ fn main() {
             .unwrap()
             .as_str()
             .unwrap();
-        println!("{}", &local_image_hash);
+        //println!("{}", &local_image_hash);
 
         // Trim hashes
         let remote_hash = remote_hash.split(':').collect::<Vec<&str>>()[1];
         let local_image_hash = local_image_hash.split(':').collect::<Vec<&str>>()[1];
 
         if remote_hash == local_image_hash {
-            println!("Hashes equal, service {} up to date\n", image.dump());
+            // println!("Hashes equal, service {} up to date\n", image.dump());
         } else {
-            println!(
+            /* println!(
                 "Hashes not equal, service {} potentially out of date: \nLocal: {}\nRemote: {}\n",
                 image.dump(),
                 local_image_hash,
                 remote_hash
-            );
+            ); */
+            warnings.push(image);
         }
+    }
+    println!("{} images may need updating:", &warnings.len());
+    for image in warnings {
+        println!("{}", image.dump());
     }
 
     //let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
