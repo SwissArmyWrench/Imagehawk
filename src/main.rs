@@ -20,10 +20,7 @@ impl Image<'_> {
     fn from_str(namestring: &str) -> Image {
         let parts: Vec<&str> = namestring.split('/').collect();
 
-        // println!("{:?}", &parts);
-
         if parts.len() == 3 {
-            // println!("EXTERNAL. Not yet supported, substituting w/ Pihole image\n");
             let namespace = parts[1];
             let remote = if parts[0] == "lscr.io" {
                 Remote::Lscr
@@ -53,7 +50,6 @@ impl Image<'_> {
                 remote,
             };
         } else if parts.len() == 2 {
-            // println!("NS AND REPO\n");
             let namespace = parts[0];
             let parts: Vec<&str> = parts[1].split(':').collect();
             let repo = parts[0];
@@ -72,7 +68,6 @@ impl Image<'_> {
         } else if (parts.len() == 1) && (parts[0].is_empty()) {
             // do nothing
         } else if parts.len() == 1 {
-            // println!("NO REPO\n");
             let parts: Vec<&str> = parts[0].split(':').collect();
             let namespace = parts[0];
             let repo = None;
@@ -86,7 +81,6 @@ impl Image<'_> {
             };
         };
 
-        // println!("{:?}", &parts);
 
         println!("NOTHING RETURNED YET\n{:?}", parts);
         Image {
@@ -95,22 +89,6 @@ impl Image<'_> {
             tag: None,
             remote: Remote::DockerHub,
         }
-    }
-
-    fn print(&self) {
-        let parsed_tag = self.tag.unwrap_or("NO TAG");
-        println!(
-            "Namespace: {}\nRepo: {}\nTag: {}\nRemote: {}\n",
-            self.namespace,
-            self.repo.unwrap_or("NO REPO GIVEN"),
-            parsed_tag,
-            match self.remote {
-                Remote::DockerHub => "DockerHub",
-                Remote::Quay => "Quay.io",
-                Remote::Lscr => "LSCR.io",
-                Remote::Ghcr => "GHCR.io",
-            }
-        );
     }
 
     fn dump(&self) -> String {
@@ -132,8 +110,6 @@ impl Image<'_> {
 }
 
 fn main() {
-    // let mut dockerps = Command::new("docker");
-    // let mut dockerps = dockerps.arg("ps");
     let output = String::from_utf8(
         Command::new("docker")
             .arg("ps")
@@ -144,20 +120,15 @@ fn main() {
             .stdout,
     )
     .unwrap();
-    // println!("{}", &output);
     // Working with iterator to remove the quotation marks at each end
     let mut output_iter: Vec<&str> = output.split('\n').collect();
     let _ = output_iter.remove(output_iter.len() - 1);
     let output_iter = output_iter.iter().map(|x| x.trim_matches('"'));
     let output_iter = output_iter.map(|string| Image::from_str(string));
-    // println!("{:?}", &output_iter);
     let images: Vec<Image> = output_iter.collect();
     
-    // images.remove(images.len() - 1);
-    // images.retain(|img| img.tag == Some("latest"));
     let mut warnings = Vec::<Image>::new();
     for image in images {
-        // println!("{}", image.dump());
         // API calls and comparisons here
         let response = reqwest::blocking::get(format!(
             "https://hub.docker.com/v2/namespaces/{0}/repositories/{1}/tags/{2}",
@@ -166,7 +137,6 @@ fn main() {
             &image.tag.unwrap_or("latest"),
         ));
         let status = response.as_ref().unwrap().status();
-        // println!("Status Code {}", &status);
         let api_supported = match image.remote {
             Remote::DockerHub => true,
             Remote::Quay => false,
@@ -177,7 +147,6 @@ fn main() {
             continue;
         }
         let json = response.unwrap().text().unwrap();
-        // println!("{json}");
         let parsed_json: Value = serde_json::from_str(&json).expect("unable to parse JSON");
         let digest = parsed_json.get("digest");
         let digest = digest.unwrap(); // .expect("tried to unwrap a None");
@@ -201,22 +170,15 @@ fn main() {
             .unwrap()
             .as_str()
             .unwrap();
-        //println!("{}", &local_image_hash);
 
         // Trim hashes
         let remote_hash = remote_hash.split(':').collect::<Vec<&str>>()[1];
         let local_image_hash = local_image_hash.split(':').collect::<Vec<&str>>()[1];
 
-        if remote_hash == local_image_hash {
-            // println!("Hashes equal, service {} up to date\n", image.dump());
-        } else {
-            /* println!(
-                "Hashes not equal, service {} potentially out of date: \nLocal: {}\nRemote: {}\n",
-                image.dump(),
-                local_image_hash,
-                remote_hash
-            ); */
+        if remote_hash != local_image_hash {
             warnings.push(image);
+        } else {
+            // do nothing 
         }
     }
     println!("{} images may need updating:", &warnings.len());
@@ -224,6 +186,4 @@ fn main() {
         println!("{}", image.dump());
     }
 
-    //let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
-    // println!("{}", parsed[0]["Image"]);
 }
